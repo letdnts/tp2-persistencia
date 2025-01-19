@@ -1,11 +1,10 @@
 [project]
-name = "tp2"
+name = "tp2-persistencia"
 version = "0.1.0"
-description = "Sistema de Gerenciamento de Voos"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.115.6",
-    "ipykernel>=6.29.5",
     "sqlmodel>=0.0.22",
 ]
