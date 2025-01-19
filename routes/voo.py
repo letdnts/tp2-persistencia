@@ -27,6 +27,46 @@ def create_voo(voo_data: Voo, session: Session = Depends(get_session)):
     session.refresh(voo_data)
     return voo_data
 
+@router.put("/{id}", response_model=Voo)
+def update_voo(id: int, voo_data: Voo, session: Session = Depends(get_session)):
+    # Busca o voo pelo ID
+    voo = session.get(Voo, id)
+    if not voo:
+        raise HTTPException(status_code=404, detail="Voo não encontrado")
+
+    # Converte as strings para datetime
+    if isinstance(voo_data.hr_partida, str):
+        voo_data.hr_partida = datetime.fromisoformat(voo_data.hr_partida)
+    if isinstance(voo_data.hr_chegada, str):
+        voo_data.hr_chegada = datetime.fromisoformat(voo_data.hr_chegada)
+
+    # Atualiza os dados do voo
+    voo.numero_voo = voo_data.numero_voo
+    voo.origem = voo_data.origem
+    voo.destino = voo_data.destino
+    voo.hr_partida = voo_data.hr_partida
+    voo.hr_chegada = voo_data.hr_chegada
+    voo.status = voo_data.status
+    voo.aeronave_id = voo_data.aeronave_id
+    voo.cia_id = voo_data.cia_id
+
+    # Commit para salvar as alterações
+    session.commit()
+    session.refresh(voo)  # Atualiza o objeto com as alterações
+
+    return voo
+# Delete (DELETE)
+@router.delete("/{id}", response_model=str)
+def delete_voo(id: int, session: Session = Depends(get_session)):
+    voo = session.get(Voo, id)
+    if not voo:
+        raise HTTPException(status_code=404, detail="Voo não encontrado")
+
+    session.delete(voo)
+    session.commit()
+
+    return {"message": "Voo excluído com sucesso"}
+
 # Consultas
 @router.get("/", response_model=list[Voo])
 def read_voos(
