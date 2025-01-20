@@ -1,7 +1,10 @@
 from datetime import datetime
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload  # Import necessário para o joinedload
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlmodel import Session, select
 from models.aeronave import Aeronave
+from models.cia import Cia
 from database import get_session
 
 router = APIRouter(
@@ -11,33 +14,143 @@ router = APIRouter(
 
 # Create
 @router.post("/", response_model=Aeronave)
-def create_aeronave(aeronave: Aeronave, session: Session = Depends(get_session)):
-    # Converta as strings de data para datetime
-    if isinstance(aeronave.last_check, str):
-        aeronave.last_check = datetime.fromisoformat(aeronave.last_check.rstrip("Z"))
-    if isinstance(aeronave.next_check, str):
-        aeronave.next_check = datetime.fromisoformat(aeronave.next_check.rstrip("Z"))
+def create_aeronave(aeronave_data: Aeronave, session: Session = Depends(get_session)):
+    # Converter campos datetime, se forem strings
+    if isinstance(aeronave_data.last_check, str):
+        aeronave_data.last_check = datetime.fromisoformat(aeronave_data.last_check.replace("Z", "+00:00"))
+    if isinstance(aeronave_data.next_check, str):
+        aeronave_data.next_check = datetime.fromisoformat(aeronave_data.next_check.replace("Z", "+00:00"))
     
-    session.add(aeronave)  # Adiciona a instância da aeronave
+    # Adicionar ao banco de dados
+    session.add(aeronave_data)
     session.commit()
-    session.refresh(aeronave)  # Atualiza a instância com os dados do banco
-    return aeronave
-
-# Read
-@router.get("/", response_model=list[Aeronave])
-def read_aeronave(
-    offset: int = 0,
-    limit: int = Query(default=10 , le=100),  
-    session: Session = Depends(get_session)):
+    session.refresh(aeronave_data)
     
+    return aeronave_data
+
+# Read (sem filtros)
+@router.get("/listar", response_model=list[Aeronave])
+def read_aeronaves(
+    offset: int = 0,
+    limit: int = Query(default=10, le=100),  
+    session: Session = Depends(get_session)):
     return session.exec(select(Aeronave).offset(offset).limit(limit)).all()
 
-# Consulta por ID
+# Read (com filtros)
+@router.get("/", response_model=list[Aeronave])
+def read_aeronaves_filtro(
+    id: int = Query(None, description="Buscar por ID"),
+    modelo: str = Query(None, description="Filtrar por modelo da aeronave"),
+    capacidade: int = Query(None, description="Filtrar por capacidade da aeronave"),
+    cia_id: int = Query(None, description="Filtrar por companhia aérea ID"),
+    session: Session = Depends(get_session)
+):
+    statement = select(Aeronave)
+
+    # Filtro por ID da aeronave
+    if id is not None:
+        statement = statement.where(Aeronave.id == id)
+
+    # Filtro por modelo da aeronave
+    if modelo:
+        statement = statement.where(Aeronave.modelo.ilike(f"%{modelo}%"))
+
+    # Filtro por capacidade
+    if capacidade is not None:
+        statement = statement.where(Aeronave.capacidade == capacidade)
+
+    # Filtro por companhia aérea ID
+    if cia_id is not None:
+        statement = statement.where(Aeronave.cia_id == cia_id)
+
+    # Execução da consulta
+    aeronaves = session.exec(statement).all()
+
+    # Verifica se encontrou alguma aeronave
+    if not aeronaves:
+        raise HTTPException(status_code=404, detail="Aeronave não encontrada")
+
+    return aeronaves
+
+# Update
+@router.put("/{id}", response_model=Aeronave)
+def update_aeronave(id: int, aeronave_data: Aeronave, session: Session = Depends(get_session)):
+    # Busca a aeronave pelo ID
+    aeronave = session.get(Aeronave, id)
+    if not aeronave:
+        raise HTTPException(status_code=404, detail="Aeronave não encontrada")
+
+    # Atualiza os dados da aeronave
+    aeronave.modelo = aeronave_data.modelo
+    aeronave.capacidade = aeronave_data.capacidade
+    aeronave.last_check = aeronave_data.last_check
+    aeronave.next_check = aeronave_data.next_check
+    aeronave.cia_id = aeronave_data.cia_id
+
+    # Commit para salvar as alterações
+    session.commit()
+    session.refresh(aeronave)  # Atualiza o objeto com as alterações
+
+    return aeronave
+
+# Delete
+@router.delete("/{aeronave_id}", response_model=Aeronave)
+def delete_aeronave(aeronave_id: int, session: Session = Depends(get_session)):
+    # Query para buscar a aeronave pelo ID
+    db_aeronave = session.get(Aeronave, aeronave_id)
+    if not db_aeronave:
+        # Retorna um erro 404 se a aeronave não for encontrada
+        raise HTTPException(status_code=404, detail="Aeronave não encontrada")
+    
+    # Deleta a aeronave
+    session.delete(db_aeronave)
+    session.commit()
+    return db_aeronave
+
+# Consultas de contagem por modelo de aeronave
+@router.get("/contagem-por-modelo", response_model=list[dict])
+def contar_aeronaves_por_modelo(session: Session = Depends(get_session)):
+    # Query para contar aeronaves agrupadas por modelo e companhia aérea
+    statement = (
+        select(Cia.nome, Aeronave.modelo, func.count(Aeronave.id).label("total_aeronaves"))
+        .join(Aeronave, Aeronave.cia_id == Cia.id)  # Realiza o JOIN entre Cia e Aeronave
+        .group_by(Cia.nome, Aeronave.modelo)  # Agrupa por companhia e modelo
+    )
+    resultados = session.exec(statement).all()
+
+    # Formata o retorno como uma lista de dicionários
+    return [
+        {"cia": result[0], "modelo": result[1], "total_aeronaves": result[2]}
+        for result in resultados
+    ]
+
+# Informações completas das aeronaves
+@router.get("/aeronaves-completas", response_model=list[dict])
+def aeronaves_completas(session: Session = Depends(get_session)):
+    statement = select(Aeronave).options(joinedload(Aeronave.cia))  # Carrega também a cia associada
+    resultados = session.exec(statement).unique().all()  # Aplica unique() para garantir resultados únicos
+
+    aeronaves_completas = []
+    for aeronave in resultados:
+        aeronaves_completas.append({
+            "id": aeronave.id,
+            "modelo": aeronave.modelo,
+            "capacidade": aeronave.capacidade,
+            "last_check": aeronave.last_check,
+            "next_check": aeronave.next_check,
+            "cia": {
+                "id": aeronave.cia.id,
+                "nome": aeronave.cia.nome,
+                "cod_iata": aeronave.cia.cod_iata,
+            }
+        })
+
+    return aeronaves_completas
+
+# Buscar Aeronave pelo ID
 @router.get("/{aeronave_id}", response_model=Aeronave)
-def get_aeronave_by_id(aeronave_id: int, session: Session = Depends(get_session)):
-    # Query para buscar o voo pelo ID
+def get_aeronave(aeronave_id: int, session: Session = Depends(get_session)):
     aeronave = session.get(Aeronave, aeronave_id)
     if not aeronave:
-        # Retorna um erro 404 se o voo não for encontrado
-        raise HTTPException(status_code=404, detail="Cia não encontrada")
+        raise HTTPException(status_code=404, detail="Aeronave não encontrada")
     return aeronave
