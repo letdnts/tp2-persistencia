@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from models.aeronave import Aeronave
 from models.cia import Cia
 from database import get_session
+from models.voo import Voo
 
 router = APIRouter(
     prefix="/aeronaves",  # Prefixo para todas as rotas
@@ -107,22 +108,17 @@ def delete_aeronave(aeronave_id: int, session: Session = Depends(get_session)):
     session.commit()
     return db_aeronave
 
-# Consultas de contagem por modelo de aeronave
-@router.get("/contagem-por-modelo", response_model=list[dict])
-def contar_aeronaves_por_modelo(session: Session = Depends(get_session)):
-    # Query para contar aeronaves agrupadas por modelo e companhia aérea
-    statement = (
-        select(Cia.nome, Aeronave.modelo, func.count(Aeronave.id).label("total_aeronaves"))
-        .join(Aeronave, Aeronave.cia_id == Cia.id)  # Realiza o JOIN entre Cia e Aeronave
-        .group_by(Cia.nome, Aeronave.modelo)  # Agrupa por companhia e modelo
-    )
-    resultados = session.exec(statement).all()
+@router.get("/contagem-aeronaves-por-voos", response_model=dict)
+def contar_aeronaves_por_voos(session: Session = Depends(get_session)):
+    statement = select(Aeronave.modelo, func.count(Voo.id).label("total_voos"))
+    statement = statement.join(Voo, Voo.aeronave_id == Aeronave.id)  # Faz o join entre Voo e Aeronave
+    statement = statement.group_by(Aeronave.modelo)  # Agrupa pela aeronave (modelo)
 
-    # Formata o retorno como uma lista de dicionários
-    return [
-        {"cia": result[0], "modelo": result[1], "total_aeronaves": result[2]}
-        for result in resultados
-    ]
+    # Executa a consulta e retorna os resultados
+    resultados = session.exec(statement).all()
+    
+    # Retorna como um dicionário com o modelo da aeronave e a contagem de voos
+    return {result[0]: result[1] for result in resultados}
 
 # Informações completas das aeronaves
 @router.get("/aeronaves-completas", response_model=list[dict])
