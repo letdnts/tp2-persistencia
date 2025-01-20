@@ -1,0 +1,28 @@
+Relatório da Segunda Etapa do Trabalho Prático
+
+Disciplina: Desenvolvimento de Software para Persistência
+
+A segunda etapa do trabalho prático da disciplina Desenvolvimento de Software para Persistência foi elaborada pelas discentes Maria Letícia dos Santos Dantas e Stefany Torres Batista. Essa etapa consistiu no desenvolvimento de uma API Web para gerenciar as entidades: Companhias aéreas, voos e aeronaves de um Sistema de gerenciamento de voos, em conformidade com as instruções fornecidas e as tecnologias exigidas.
+
+A divisão de tarefas foi realizada com base nos requisitos de implementação, nas consultas requeridas e nos requisitos de entrega. O diagrama (feito no mermaid) e a população do banco foram feitos em conjunto. Cada membro ficou responsável por:
+
+Responsabilidades Letícia:
+* Desenvolveu o CRUD completo da entidade Voo, incluindo:
+* Consultas por ID.
+* Filtragem por data.
+* Filtragem por companhia aérea através de busca textual parcial.
+* Ordenação por hora de partida ou chegada.
+* Contagem de registros.
+* Consulta completa, retornando informações detalhadas da companhia aérea e da aeronave associada.
+* Implementou as operações de Create e Read para as entidades Aeronave e Companhia Aérea.
+
+Responsabilidades Stefany:
+* Implementou as operações de Update e Delete para as entidades Aeronave e Companhia Aérea.
+* Desenvolveu consultas com as seguintes funcionalidades:
+* Filtragem de aeronaves pelo modelo (busca parcial).
+* Filtragem pela capacidade da aeronave.
+* Filtragem pelo ID da companhia aérea associada à aeronave.
+* Criou filtros para companhias aéreas:
+* Busca por código IATA.
+* Busca textual parcial pelo nome da companhia aérea.
+* Ordenação pelo nome da companhia aérea
